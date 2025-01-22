@@ -2,7 +2,28 @@
 
 MyHashcat est un outil qui combine la génération de dictionnaires personnalisés avec la puissance de Hashcat pour le crackage de mots de passe.
 
+## Prérequis
+
+- Python 3.8+
+- Hashcat installé et accessible dans le PATH
+- pip (gestionnaire de paquets Python)
+- venv (module de gestion d'environnements virtuels Python)
+
 ## Installation
+
+### 1. Préparation de l'environnement Python
+
+```bash
+# Création de l'environnement virtuel
+python -m venv venv
+
+# Activation de l'environnement virtuel
+source venv/bin/activate  # Linux/Mac
+# ou
+.\venv\Scripts\activate  # Windows
+```
+
+### 2. Installation de MyHashcat
 
 ```bash
 # Cloner le dépôt
@@ -17,13 +38,22 @@ chmod +x install.sh
 Le script d'installation :
 - Crée les répertoires nécessaires
 - Configure l'environnement
-- Installe les dépendances
+- Installe les dépendances Python requises :
+  - pyyaml>=6.0 : Pour la gestion des configurations
+  - click>=8.1.0 : Pour l'interface en ligne de commande
+  - tqdm>=4.65.0 : Pour les barres de progression
+  - python-dotenv>=1.0.0 : Pour la gestion des variables d'environnement
 - Rend l'outil accessible via la commande `myhashcat`
 
-## Prérequis
+### 3. Vérification de l'installation
 
-- Python 3.8+
-- Hashcat installé et accessible dans le PATH
+```bash
+# Vérifier que l'environnement est actif
+which python  # devrait pointer vers l'environnement virtuel
+
+# Vérifier l'installation de MyHashcat
+myhashcat --help
+```
 
 ## Utilisation
 
@@ -130,10 +160,12 @@ MyHashcat gère automatiquement :
 
 ## Bonnes pratiques
 
-1. Toujours utiliser la méthode `cleanup()` après utilisation
-2. Vérifier régulièrement le statut des sessions
-3. Utiliser des charset adaptés à vos besoins
-4. Configurer les options Hashcat selon votre matériel
+1. Toujours utiliser un environnement virtuel Python
+2. Activer l'environnement avant d'utiliser l'outil
+3. Utiliser la méthode `cleanup()` après utilisation
+4. Vérifier régulièrement le statut des sessions
+5. Utiliser des charset adaptés à vos besoins
+6. Configurer les options Hashcat selon votre matériel
 
 ## Contribution
 
