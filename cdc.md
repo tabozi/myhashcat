@@ -1,7 +1,128 @@
 # Cahier des Charges - MyHashcat
 
-## Description du Projet
-MyHashcat est un outil en Python conçu pour automatiser et optimiser l'utilisation de Hashcat en générant des dictionnaires à la volée.
+## Objectif
+
+Développer un outil Python qui combine la génération de dictionnaires personnalisés avec Hashcat pour le crackage de mots de passe.
+
+## Composants
+
+### 1. Générateur de Dictionnaire
+- **État**: Implémentation complète
+- **Fonctionnalités**:
+  - Génération de mots selon des critères spécifiés
+  - Personnalisation du charset
+  - Gestion de la longueur des mots
+  - Génération par lots pour optimiser la mémoire
+
+### 2. Interface Hashcat
+- **État**: Implémentation complète
+- **Fonctionnalités**:
+  - Validation de l'installation de Hashcat
+  - Gestion des différents modes d'attaque
+  - Support des règles personnalisées
+  - Suivi des processus Hashcat
+  - Nettoyage des ressources
+
+### 3. Gestionnaire de Sessions
+- **État**: Implémentation complète
+- **Fonctionnalités**:
+  - Création et suivi des sessions
+  - Stockage des configurations
+  - Persistance des résultats
+  - Gestion des états des sessions
+
+### 4. Interface en Ligne de Commande
+- **État**: Implémentation complète
+- **Fonctionnalités**:
+  - Commandes intuitives (start, status, stop, list, cleanup)
+  - Arguments avec valeurs par défaut
+  - Messages d'aide détaillés
+  - Gestion des erreurs
+  - Compatibilité avec les scripts shell
+
+### 5. Configuration
+- **État**: Implémentation complète
+- **Fonctionnalités**:
+  - Fichier de configuration YAML
+  - Paramètres par défaut personnalisables
+  - Chemins configurables
+  - Options Hashcat préconfigurées
+  - Liste de règles recommandées
+
+### 6. Installation
+- **État**: Implémentation complète
+- **Fonctionnalités**:
+  - Script d'installation automatique
+  - Vérification des prérequis
+  - Configuration de l'environnement
+  - Installation des dépendances
+  - Création des raccourcis système
+
+## Tests
+
+### Tests Unitaires
+- Tests du générateur de dictionnaire
+- Tests de l'interface Hashcat
+- Tests du gestionnaire de sessions
+- Couverture de code > 80%
+
+### Tests d'Intégration
+- Tests des interactions entre composants
+- Tests de l'interface en ligne de commande
+- Tests des scénarios d'utilisation complets
+
+## Documentation
+
+### Documentation Technique
+- Architecture du projet
+- Description des composants
+- Diagrammes de classes
+- Guide de contribution
+
+### Documentation Utilisateur
+- Guide d'installation
+- Guide d'utilisation
+- Exemples de commandes
+- Bonnes pratiques
+
+## Tâches Restantes
+
+1. **Optimisation**:
+   - Optimisation de la génération de dictionnaires
+   - Amélioration des performances des attaques
+   - Réduction de l'utilisation mémoire
+
+2. **Fonctionnalités Avancées**:
+   - Support de modes d'attaque supplémentaires
+   - Intégration de nouvelles règles
+   - Statistiques avancées
+
+3. **Interface Graphique**:
+   - Développement d'une interface web
+   - Visualisation des résultats
+   - Tableau de bord des sessions
+
+## Contraintes Techniques
+
+- Python 3.8+
+- Hashcat installé sur le système
+- Gestion efficace de la mémoire
+- Support multi-plateforme (Linux, Windows, macOS)
+
+## Sécurité
+
+- Validation des entrées utilisateur
+- Gestion sécurisée des fichiers temporaires
+- Protection contre les injections de commandes
+- Nettoyage automatique des ressources sensibles
+
+## Maintenance
+
+- Tests automatisés
+- Intégration continue
+- Gestion des versions
+- Suivi des bugs
+- Documentation à jour
 
 ## État d'Avancement
 

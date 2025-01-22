@@ -1,0 +1,25 @@
+# Configuration par défaut de MyHashcat
+
+# Chemins
+paths:
+  hashcat: "hashcat"  # Chemin vers l'exécutable hashcat
+  work_dir: "~/.myhashcat/work"  # Répertoire de travail
+  sessions_dir: "~/.myhashcat/sessions"  # Répertoire des sessions
+  rules_dir: "~/.myhashcat/rules"  # Répertoire des règles
+
+# Paramètres par défaut
+defaults:
+  word_length: 8
+  charset: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+  attack_mode: "straight"
+  
+# Options hashcat par défaut
+hashcat_options:
+  workload_profile: 2
+  optimized_kernel: true
+  
+# Règles recommandées
+recommended_rules:
+  - "best64.rule"
+  - "d3ad0ne.rule"
+  - "rockyou-30000.rule" 

@@ -9,15 +9,16 @@ MyHashcat est un outil qui combine la génération de dictionnaires personnalis�
 git clone https://github.com/votre-repo/myhashcat.git
 cd myhashcat
 
-# Créer un environnement virtuel
-python -m venv venv
-source venv/bin/activate  # Linux/Mac
-# ou
-.\venv\Scripts\activate  # Windows
-
-# Installer les dépendances
-pip install -r requirements.txt
+# Lancer le script d'installation
+chmod +x install.sh
+./install.sh
 ```
+
+Le script d'installation :
+- Crée les répertoires nécessaires
+- Configure l'environnement
+- Installe les dépendances
+- Rend l'outil accessible via la commande `myhashcat`
 
 ## Prérequis
 
@@ -26,7 +27,29 @@ pip install -r requirements.txt
 
 ## Utilisation
 
-### Exemple basique
+### Interface en ligne de commande
+
+```bash
+# Afficher l'aide
+myhashcat --help
+
+# Démarrer une nouvelle session
+myhashcat start test_session hash.txt 0 --word-length 8 --charset "abc123"
+
+# Vérifier le statut d'une session
+myhashcat status <session_id>
+
+# Lister toutes les sessions
+myhashcat list
+
+# Arrêter une session
+myhashcat stop <session_id>
+
+# Nettoyer les ressources
+myhashcat cleanup
+```
+
+### Utilisation en Python
 
 ```python
 from pathlib import Path
@@ -55,38 +78,40 @@ hashcat.stop_session(session_id)
 hashcat.cleanup()
 ```
 
-### Utilisation avancée
-
-```python
-# Attaque avec règles personnalisées
-session_id = hashcat.create_attack_session(
-    name="advanced_crack",
-    hash_file=Path("hashes.txt"),
-    hash_type=1000,  # NTLM
-    word_length=10,
-    charset={'A', 'B', 'C', '1', '2', '3', '@', '#'},
-    attack_mode="straight",
-    rules=[Path("rules/best64.rule")],
-    options={
-        "workload-profile": 3,
-        "optimized-kernel-enable": True
-    }
-)
-```
-
 ## Configuration
 
-### Paramètres disponibles
+Le fichier de configuration `~/.myhashcat/config.yaml` permet de personnaliser :
 
-- `hashcat_path`: Chemin vers l'exécutable hashcat
-- `sessions_dir`: Répertoire pour stocker les sessions
-- `work_dir`: Répertoire de travail temporaire
+```yaml
+# Chemins
+paths:
+  hashcat: "hashcat"
+  work_dir: "~/.myhashcat/work"
+  sessions_dir: "~/.myhashcat/sessions"
+  rules_dir: "~/.myhashcat/rules"
+
+# Paramètres par défaut
+defaults:
+  word_length: 8
+  charset: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+  attack_mode: "straight"
+```
 
 ### Modes d'attaque
 
 - `straight`: Attaque par dictionnaire classique
 - `combination`: Attaque par combinaison
 - `mask`: Attaque par masque (force brute)
+
+### Options avancées
+
+```bash
+# Utilisation de règles
+myhashcat start test hash.txt 0 --rules rules/best64.rule
+
+# Configuration du workload
+myhashcat start test hash.txt 0 --options '{"workload-profile": 3}'
+```
 
 ## Gestion des sessions
 

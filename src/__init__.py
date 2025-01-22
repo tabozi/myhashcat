@@ -1,6 +1,11 @@
 """
-MyHashcat - Générateur de dictionnaire dynamique pour Hashcat
+MyHashcat - Outil de génération de dictionnaires et d'interface avec Hashcat
 """
 
+from .myhashcat import MyHashcat
+from .generator import DictionaryGenerator
+from .hashcat_interface import HashcatInterface
+from .session_manager import SessionManager
+
 __version__ = "0.1.0"
-__author__ = "MyHashcat Team" 
+__all__ = ["MyHashcat", "DictionaryGenerator", "HashcatInterface", "SessionManager"] 
