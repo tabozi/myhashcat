@@ -13,7 +13,7 @@ MyHashcat est un outil qui combine la génération de dictionnaires personnalis�
 
 ```bash
 # Cloner le dépôt
-git clone https://github.com/votre-repo/myhashcat.git
+git clone https://github.com/tabozi/myhashcat.git
 cd myhashcat
 
 # Créer un environnement virtuel
