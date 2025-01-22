@@ -9,9 +9,9 @@ paths:
 
 # Paramètres par défaut
 defaults:
-  word_length: 8
-  charset: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-  attack_mode: "straight"
+  word_length: 18
+  charset: "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+  attack_mode: "mask"
   
 # Options hashcat par défaut
 hashcat_options:

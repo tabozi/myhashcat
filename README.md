@@ -11,75 +11,82 @@ MyHashcat est un outil qui combine la génération de dictionnaires personnalis�
 
 ## Installation
 
-### 1. Préparation de l'environnement Python
-
-```bash
-# Création de l'environnement virtuel
-python -m venv venv
-
-# Activation de l'environnement virtuel
-source venv/bin/activate  # Linux/Mac
-# ou
-.\venv\Scripts\activate  # Windows
-```
-
-### 2. Installation de MyHashcat
-
 ```bash
 # Cloner le dépôt
 git clone https://github.com/votre-repo/myhashcat.git
 cd myhashcat
 
-# Lancer le script d'installation
-chmod +x install.sh
-./install.sh
+# Créer un environnement virtuel
+python -m venv venv
+source venv/bin/activate  # Linux/Mac
+# ou
+.\venv\Scripts\activate  # Windows
+
+# Installer les dépendances
+pip install -r requirements.txt
+
+# Installer l'outil
+pip install -e .
 ```
 
-Le script d'installation :
-- Crée les répertoires nécessaires
-- Configure l'environnement
-- Installe les dépendances Python requises :
-  - pyyaml>=6.0 : Pour la gestion des configurations
-  - click>=8.1.0 : Pour l'interface en ligne de commande
-  - tqdm>=4.65.0 : Pour les barres de progression
-  - python-dotenv>=1.0.0 : Pour la gestion des variables d'environnement
-- Rend l'outil accessible via la commande `myhashcat`
+## Types de Hash
 
-### 3. Vérification de l'installation
+Le paramètre `hash_type` correspond à l'identifiant numérique utilisé par Hashcat pour identifier le type de hash. Voici les types les plus courants :
 
 ```bash
-# Vérifier que l'environnement est actif
-which python  # devrait pointer vers l'environnement virtuel
+0     # MD5
+100   # SHA1
+1400  # SHA2-256
+1700  # SHA2-512
+3200  # BCRYPT
+```
 
-# Vérifier l'installation de MyHashcat
-myhashcat --help
+### Détection Automatique du Type de Hash
+
+MyHashcat peut maintenant détecter automatiquement le type de hash, ce qui simplifie l'utilisation de l'outil :
+
+```python
+# Création d'une session avec détection automatique du type de hash
+session_id = hashcat.create_attack_session(
+    name="test_crack",
+    hash_file=Path("hashes.txt"),  # Le type sera détecté automatiquement
+    word_length=8,
+    charset={'a', 'b', 'c', '1', '2', '3'}
+)
+```
+
+En ligne de commande :
+```bash
+# Création d'une session avec détection automatique
+myhashcat start test_session hashes.txt
+
+# Le type de hash sera affiché lors du démarrage
+# Exemple : "Type de hash détecté : MD5 (ID: 0)"
+```
+
+Types de hash supportés pour la détection automatique :
+- MD5 (ID: 0)
+- SHA1 (ID: 100)
+- SHA256 (ID: 1400)
+- SHA512 (ID: 1700)
+- BCrypt (ID: 3200)
+- SHA256 Unix (ID: 7400)
+- SHA512 Unix (ID: 1800)
+- PHPass (ID: 400)
+
+Si la détection automatique échoue, vous pouvez toujours spécifier manuellement le type de hash :
+```bash
+myhashcat start test_session hashes.txt 1400  # Force SHA256
+```
+
+Pour une liste complète des types de hash supportés :
+```bash
+hashcat --help | grep -i "hash modes"
 ```
 
 ## Utilisation
 
-### Interface en ligne de commande
-
-```bash
-# Afficher l'aide
-myhashcat --help
-
-# Démarrer une nouvelle session
-myhashcat start test_session hash.txt 0 --word-length 8 --charset "abc123"
-
-# Vérifier le statut d'une session
-myhashcat status <session_id>
-
-# Lister toutes les sessions
-myhashcat list
-
-# Arrêter une session
-myhashcat stop <session_id>
-
-# Nettoyer les ressources
-myhashcat cleanup
-```
-
-### Utilisation en Python
+### Exemple de base
 
 ```python
 from pathlib import Path
@@ -99,13 +106,30 @@ session_id = hashcat.create_attack_session(
 
 # Vérification du statut
 status = hashcat.get_session_status(session_id)
-print(f"Statut de la session: {status['status']}")
+print(f"Statut: {status['status']}")
+```
 
-# Arrêt de la session
-hashcat.stop_session(session_id)
+### En ligne de commande
 
-# Nettoyage
-hashcat.cleanup()
+```bash
+# Démarrer une attaque
+myhashcat start test_session hash.txt 0
+
+# Vérifier le statut
+myhashcat status <session_id>
+
+# Arrêter une session
+myhashcat stop <session_id>
+```
+
+### Options avancées
+
+```bash
+# Utilisation de règles
+myhashcat start test hash.txt 0 --rules rules/best64.rule
+
+# Configuration du workload
+myhashcat start test hash.txt 0 --options '{"workload-profile": 3}'
 ```
 
 ## Configuration
@@ -122,34 +146,83 @@ paths:
 
 # Paramètres par défaut
 defaults:
-  word_length: 8
-  charset: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-  attack_mode: "straight"
+  word_length: 18
+  charset: "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+  attack_mode: "mask"
 ```
 
 ### Modes d'attaque
 
+- `mask`: Attaque par masque (force brute)
 - `straight`: Attaque par dictionnaire classique
 - `combination`: Attaque par combinaison
-- `mask`: Attaque par masque (force brute)
 
-### Options avancées
+### Gestion des Sessions
+
+MyHashcat utilise un système de sessions pour gérer les attaques de mots de passe. Une session représente une instance d'attaque avec sa configuration et son état.
+
+### Caractéristiques des Sessions
+
+- **Identification** : Chaque session est identifiée par un ID unique composé du nom de la session et d'un horodatage.
+- **État** : Une session peut être dans l'un des états suivants :
+  - `created` : Session nouvellement créée
+  - `running` : Attaque en cours d'exécution
+  - `stopped` : Attaque arrêtée manuellement
+  - `finished` : Attaque terminée
+
+### Configuration d'une Session
+
+Une session stocke les informations suivantes :
+- Fichier de hash à cracker
+- Type de hash (format hashcat)
+- Mode d'attaque (straight, rules, mask)
+- Configuration du générateur de dictionnaire
+  - Longueur des mots
+  - Jeu de caractères
+- Règles de transformation (optionnel)
+- Options supplémentaires
+
+### Contraintes et Limitations
+
+1. **Stockage** :
+   - Les sessions sont stockées dans `~/.myhashcat/sessions/`
+   - Chaque session crée son propre fichier de dictionnaire
+
+2. **Ressources** :
+   - Une session active maintient un processus hashcat
+   - Les dictionnaires générés occupent de l'espace disque
+   - Il est recommandé de nettoyer régulièrement les sessions terminées
+
+3. **Gestion du Cycle de Vie** :
+   - Les sessions doivent être explicitement arrêtées avec `stop`
+   - Le nettoyage avec `cleanup` est nécessaire pour libérer les ressources
+   - Les sessions arrêtées ou terminées sont supprimées lors du cleanup
+
+### Commandes de Gestion
 
 ```bash
-# Utilisation de règles
-myhashcat start test hash.txt 0 --rules rules/best64.rule
+# Créer une nouvelle session
+myhashcat start <nom_session> <fichier_hash> <type_hash> [options]
 
-# Configuration du workload
-myhashcat start test hash.txt 0 --options '{"workload-profile": 3}'
+# Vérifier le statut d'une session
+myhashcat status <session_id>
+
+# Lister toutes les sessions
+myhashcat list
+
+# Arrêter une session
+myhashcat stop <session_id>
+
+# Nettoyer les sessions terminées et les ressources
+myhashcat cleanup
 ```
 
-## Gestion des sessions
+### Bonnes Pratiques
 
-Chaque session d'attaque est identifiée par un ID unique et contient :
-- Configuration de l'attaque
-- État actuel
-- Dictionnaire généré
-- Résultats
+1. Toujours vérifier le statut des sessions avec `list`
+2. Arrêter les sessions inutilisées avec `stop`
+3. Exécuter régulièrement `cleanup` pour libérer les ressources
+4. Utiliser des noms de session explicites pour faciliter leur identification
 
 ## Nettoyage des ressources
 
@@ -176,4 +249,6 @@ Les contributions sont les bienvenues ! N'hésitez pas à :
 
 ## Licence
 
-Ce projet est sous licence MIT. 
+Ce projet est sous licence MIT.
+
+> **Note** : La détection automatique du type de hash sera implémentée dans une version future de MyHashcat. 

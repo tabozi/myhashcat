@@ -85,6 +85,21 @@ class SessionManager:
         self._save_session(session_id, session_data)
         return True
 
+    def list_sessions(self) -> Dict[str, Dict[str, Any]]:
+        """
+        Liste toutes les sessions existantes
+
+        Returns:
+            Dict[str, Dict[str, Any]]: Dictionnaire des sessions avec leur ID comme clé
+        """
+        sessions = {}
+        for session_file in self.sessions_dir.glob("*.json"):
+            session_id = session_file.stem
+            session_data = self.load_session(session_id)
+            if session_data:
+                sessions[session_id] = session_data
+        return sessions
+
     def _save_session(self, session_id: str, data: Dict[str, Any]) -> None:
         """
         Sauvegarde les données d'une session
@@ -95,4 +110,24 @@ class SessionManager:
         """
         session_file = self.sessions_dir / f"{session_id}.json"
         with session_file.open("w") as f:
-            json.dump(data, f, indent=2) 
+            json.dump(data, f, indent=2)
+
+    def delete_session(self, session_id: str) -> bool:
+        """
+        Supprime une session existante
+
+        Args:
+            session_id (str): Identifiant de la session
+
+        Returns:
+            bool: True si la suppression a réussi, False sinon
+        """
+        session_file = self.sessions_dir / f"{session_id}.json"
+        if session_file.exists():
+            try:
+                session_file.unlink()
+                return True
+            except OSError as e:
+                print(f"Erreur lors de la suppression du fichier de session {session_id}: {e}")
+                return False
+        return False 
