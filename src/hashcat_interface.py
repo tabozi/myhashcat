@@ -41,20 +41,32 @@ class HashcatInterface:
             RuntimeError: Si Hashcat n'est pas disponible ou ne fonctionne pas
         """
         try:
+            # Utilisation de --version au lieu de -V pour être plus explicite
             result = subprocess.run(
                 [self.hashcat_path, "--version"],
                 capture_output=True,
                 text=True,
                 check=True
             )
+            
+            # Vérification plus précise de la sortie
             version = result.stdout.strip()
-            if "hashcat" not in version.lower():
-                raise RuntimeError("Version de Hashcat non reconnue")
+            if not version:
+                raise RuntimeError("Hashcat n'a retourné aucune version")
+            
+            # Vérification que la sortie contient un numéro de version
+            if not any(c.isdigit() for c in version):
+                raise RuntimeError(f"Version de Hashcat non reconnue: {version}")
+            
             return version
+            
         except subprocess.CalledProcessError as e:
-            raise RuntimeError(f"Erreur lors de l'exécution de Hashcat: {e}")
+            error_msg = e.stderr.strip() if e.stderr else str(e)
+            raise RuntimeError(f"Erreur lors de l'exécution de Hashcat: {error_msg}")
         except FileNotFoundError:
             raise RuntimeError(f"Hashcat non trouvé à l'emplacement: {self.hashcat_path}")
+        except Exception as e:
+            raise RuntimeError(f"Erreur inattendue lors de la vérification de Hashcat: {str(e)}")
 
     def start_attack(
         self,
