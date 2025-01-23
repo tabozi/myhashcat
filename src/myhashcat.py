@@ -8,6 +8,7 @@ from datetime import datetime
 import string
 import logging
 import os
+import psutil
 
 from .generator import DictionaryGenerator
 from .hashcat_interface import HashcatInterface
@@ -353,27 +354,50 @@ class MyHashcat:
         return session
 
     def stop_session(self, session_id: str) -> None:
-        """
-        Arrête une session en cours
+        """Arrête une session en cours d'exécution."""
+        self.logger.info(f"Tentative d'arrêt de la session {session_id}")
+        
+        try:
+            session = self.session_manager.load_session(session_id)
+            if not session:
+                self.logger.error(f"Session {session_id} non trouvée")
+                raise ValueError(f"Session {session_id} non trouvée")
 
-        Args:
-            session_id (str): Identifiant de la session
-        """
-        session = self.session_manager.load_session(session_id)
-        if not session:
-            raise ValueError(f"Session non trouvée: {session_id}")
+            # Récupérer le PID du processus
+            pid = session.get("process_pid")
+            if not pid:
+                self.logger.warning(f"Aucun PID trouvé pour la session {session_id}")
+                return
 
-        process = self._active_processes.get(session_id)
-        if process:
-            # Vérification si le processus est toujours en cours d'exécution
-            if process.poll() is None:
-                print(f"Arrêt du processus pour la session: {session_id}")
-                self.hashcat.stop_attack(process)
-            self._active_processes.pop(session_id, None)
+            # Tenter d'arrêter le processus principal
+            try:
+                parent = psutil.Process(pid)
+                # Arrêter tous les processus enfants
+                children = parent.children(recursive=True)
+                for child in children:
+                    self.logger.debug(f"Tentative d'arrêt du processus enfant {child.pid}")
+                    child.kill()
+                # Arrêter le processus parent
+                self.logger.debug(f"Tentative d'arrêt du processus parent {pid}")
+                parent.kill()
+            except psutil.NoSuchProcess:
+                self.logger.warning(f"Processus {pid} déjà terminé")
+            except Exception as e:
+                self.logger.error(f"Erreur lors de l'arrêt du processus {pid}: {str(e)}")
 
-        # Mise à jour du statut de la session
-        self.session_manager.update_session(session_id, {"status": "stopped"})
-        print(f"Session {session_id} arrêtée")
+            # Mettre à jour le statut de la session
+            session["status"] = "stopped"
+            self.session_manager.update_session(session_id, session)
+            
+            # Supprimer le processus de la liste des processus actifs
+            if session_id in self._active_processes:
+                del self._active_processes[session_id]
+            
+            self.logger.info(f"Session {session_id} arrêtée avec succès")
+
+        except Exception as e:
+            self.logger.error(f"Erreur lors de l'arrêt de la session {session_id}: {str(e)}")
+            raise
 
     def cleanup(self) -> None:
         """
