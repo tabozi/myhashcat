@@ -7,6 +7,10 @@ import tempfile
 from pathlib import Path
 from typing import Optional, List, Dict, Any
 from datetime import datetime
+import time
+import threading
+import queue
+import logging
 
 
 class HashcatInterface:
@@ -27,8 +31,11 @@ class HashcatInterface:
             hashcat_path (str): Chemin vers l'exécutable hashcat
         """
         self.hashcat_path = hashcat_path
+        self.logger = logging.getLogger('myhashcat.hashcat')
+        self.logger.info(f"Initialisation de l'interface Hashcat avec: {hashcat_path}")
         self.version = self._validate_hashcat()
         self.temp_dir = Path(tempfile.mkdtemp(prefix="myhashcat_"))
+        self.logger.debug(f"Répertoire temporaire créé: {self.temp_dir}")
 
     def _validate_hashcat(self) -> str:
         """
@@ -41,7 +48,7 @@ class HashcatInterface:
             RuntimeError: Si Hashcat n'est pas disponible ou ne fonctionne pas
         """
         try:
-            # Utilisation de --version au lieu de -V pour être plus explicite
+            self.logger.debug("Vérification de la version de Hashcat")
             result = subprocess.run(
                 [self.hashcat_path, "--version"],
                 capture_output=True,
@@ -49,122 +56,129 @@ class HashcatInterface:
                 check=True
             )
             
-            # Vérification plus précise de la sortie
             version = result.stdout.strip()
             if not version:
+                self.logger.error("Hashcat n'a retourné aucune version")
                 raise RuntimeError("Hashcat n'a retourné aucune version")
             
-            # Vérification que la sortie contient un numéro de version
             if not any(c.isdigit() for c in version):
+                self.logger.error(f"Version de Hashcat non reconnue: {version}")
                 raise RuntimeError(f"Version de Hashcat non reconnue: {version}")
             
+            self.logger.info(f"Version de Hashcat validée: {version}")
             return version
             
         except subprocess.CalledProcessError as e:
             error_msg = e.stderr.strip() if e.stderr else str(e)
+            self.logger.error(f"Erreur lors de l'exécution de Hashcat: {error_msg}")
             raise RuntimeError(f"Erreur lors de l'exécution de Hashcat: {error_msg}")
         except FileNotFoundError:
+            self.logger.error(f"Hashcat non trouvé à l'emplacement: {self.hashcat_path}")
             raise RuntimeError(f"Hashcat non trouvé à l'emplacement: {self.hashcat_path}")
         except Exception as e:
+            self.logger.error(f"Erreur inattendue lors de la vérification de Hashcat: {str(e)}")
             raise RuntimeError(f"Erreur inattendue lors de la vérification de Hashcat: {str(e)}")
 
     def start_attack(
         self,
         hash_file: Path,
-        attack_mode: str,
-        hash_type: int,
+        attack_mode: str = "straight",
+        hash_type: Optional[int] = None,
         dictionary: Optional[Path] = None,
         rules: Optional[List[Path]] = None,
-        session: Optional[str] = None,
         mask: Optional[str] = None,
-        options: Optional[Dict[str, Any]] = None
+        session: Optional[str] = None,
+        options: Optional[Dict[str, Any]] = None,
+        verbose: bool = False
     ) -> subprocess.Popen:
         """
         Lance une attaque Hashcat
 
         Args:
-            hash_file (Path): Fichier contenant le hash à cracker
-            attack_mode (str): Mode d'attaque ('straight', 'combination', 'bruteforce', 'hybrid')
-            hash_type (int): Type de hash (voir --help de hashcat)
-            dictionary (Path, optional): Chemin vers le dictionnaire
-            rules (List[Path], optional): Liste des fichiers de règles
-            session (str, optional): Nom de la session
-            mask (str, optional): Masque pour les attaques par force brute
-            options (Dict[str, Any], optional): Options supplémentaires pour hashcat
-
-        Returns:
-            subprocess.Popen: Process Hashcat
-
-        Raises:
-            ValueError: Si les paramètres sont invalides
-            RuntimeError: Si l'attaque ne peut pas être lancée
+            hash_file (Path): Fichier contenant le hash
+            attack_mode (str): Mode d'attaque (straight, rules, mask)
+            hash_type (Optional[int]): Type de hash
+            dictionary (Optional[Path]): Fichier dictionnaire
+            rules (Optional[List[Path]]): Liste des fichiers de règles
+            mask (Optional[str]): Masque pour l'attaque
+            session (Optional[str]): Identifiant de session
+            options (Dict[str, Any]): Options supplémentaires
+            verbose (bool): Affiche la sortie de hashcat
         """
-        if not hash_file.exists():
-            raise ValueError(f"Fichier de hash non trouvé: {hash_file}")
+        self.logger.info(f"Démarrage d'une attaque Hashcat sur {hash_file}")
+        self.logger.debug(f"Paramètres: mode={attack_mode}, type={hash_type}, dict={dictionary}, rules={rules}")
 
-        if attack_mode not in self.ATTACK_MODES:
-            raise ValueError(f"Mode d'attaque invalide: {attack_mode}")
-
-        if dictionary is not None and not dictionary.exists():
-            raise ValueError(f"Dictionnaire non trouvé: {dictionary}")
-
-        if rules:
-            for rule in rules:
-                if not rule.exists():
-                    raise ValueError(f"Fichier de règles non trouvé: {rule}")
+        # Création du répertoire temporaire
+        self.temp_dir = tempfile.mkdtemp(prefix="myhashcat_")
+        cracked_file = Path(self.temp_dir) / "cracked.txt"
 
         # Construction de la commande
         cmd = [
             self.hashcat_path,
-            "--quiet",
+            "--force",
             "--status",
             "--status-timer", "1",
-            "--outfile", str(self.temp_dir / "cracked.txt"),
-            "-m", str(hash_type),
-            "-a", str(self.ATTACK_MODES[attack_mode]),
-            str(hash_file)
+            "--outfile", str(cracked_file)
         ]
 
-        # Ajout du dictionnaire si nécessaire
+        if hash_type is not None:
+            cmd.extend(["-m", str(hash_type)])
+
+        if attack_mode == "straight":
+            cmd.extend(["-a", "0"])
+        elif attack_mode == "rules":
+            cmd.extend(["-a", "0"])
+        elif attack_mode == "mask":
+            cmd.extend(["-a", "3"])
+
+        cmd.append(str(hash_file))
+
         if dictionary:
             cmd.append(str(dictionary))
 
-        # Ajout du masque si nécessaire
-        if mask:
-            if attack_mode in ['bruteforce', 'hybrid']:
-                cmd.append(mask)
-            else:
-                raise ValueError("Le masque n'est utilisable qu'en mode bruteforce ou hybrid")
-
-        # Ajout des règles
         if rules:
             for rule in rules:
                 cmd.extend(["-r", str(rule)])
 
-        # Ajout du nom de session
+        if mask:
+            cmd.append(mask)
+
         if session:
             cmd.extend(["--session", session])
 
         # Ajout des options supplémentaires
         if options:
             for key, value in options.items():
-                if len(key) == 1:
-                    cmd.append(f"-{key}")
+                if isinstance(value, bool):
+                    if value:
+                        cmd.append(f"--{key}")
                 else:
-                    cmd.append(f"--{key}")
-                if value is not None:
-                    cmd.append(str(value))
+                    cmd.extend([f"--{key}", str(value)])
 
-        try:
-            return subprocess.Popen(
-                cmd,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-                bufsize=1
-            )
-        except subprocess.SubprocessError as e:
-            raise RuntimeError(f"Erreur lors du lancement de l'attaque: {e}")
+        self.logger.debug(f"Commande Hashcat: {' '.join(cmd)}")
+
+        if verbose:
+            print("Démarrage d'une attaque Hashcat...")
+            print(f"- Fichier hash: {hash_file}")
+            print(f"- Mode d'attaque: {attack_mode}")
+            print(f"- Type de hash: {hash_type}")
+            print(f"- Dictionnaire: {dictionary}")
+            print(f"- Règles: {rules}")
+            print(f"Commande Hashcat: {' '.join(cmd)}")
+
+        # Lancement du processus avec redirection de la sortie
+        process = subprocess.Popen(
+            cmd,
+            stdout=subprocess.PIPE if not verbose else None,
+            stderr=subprocess.PIPE if not verbose else None,
+            universal_newlines=True
+        )
+
+        self.logger.info(f"Processus Hashcat démarré avec PID {process.pid}")
+        if verbose:
+            print(f"Processus Hashcat démarré avec PID {process.pid}")
+
+        return process
 
     def get_progress(self, process: subprocess.Popen) -> Dict[str, Any]:
         """
@@ -199,21 +213,28 @@ class HashcatInterface:
             process (subprocess.Popen): Process Hashcat à arrêter
         """
         if process.poll() is None:
+            self.logger.info(f"Arrêt du processus Hashcat PID {process.pid}")
             process.terminate()
             try:
                 process.wait(timeout=5)
+                self.logger.info("Processus terminé normalement")
             except subprocess.TimeoutExpired:
+                self.logger.warning("Le processus ne répond pas, utilisation de kill")
                 process.kill()
+                self.logger.info("Processus tué")
 
     def cleanup(self) -> None:
         """Nettoie les fichiers temporaires"""
+        self.logger.info("Nettoyage des fichiers temporaires")
         if self.temp_dir.exists():
             for file in self.temp_dir.glob("*"):
                 try:
                     file.unlink()
-                except OSError:
-                    pass
+                    self.logger.debug(f"Fichier supprimé: {file}")
+                except OSError as e:
+                    self.logger.error(f"Erreur lors de la suppression de {file}: {e}")
             try:
                 self.temp_dir.rmdir()
-            except OSError:
-                pass 
+                self.logger.info("Répertoire temporaire supprimé")
+            except OSError as e:
+                self.logger.error(f"Erreur lors de la suppression du répertoire temporaire: {e}") 

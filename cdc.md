@@ -1,5 +1,99 @@
 # Cahier des Charges - MyHashcat
 
+## État d'Avancement
+
+### Composants Implémentés
+
+1. **HashcatInterface**
+   - Implémentation complète
+   - Gestion des processus Hashcat
+   - Validation des paramètres
+   - Détection automatique du type de hash
+   - Optimisations pour WPA
+
+2. **DictionaryGenerator**
+   - Implémentation complète
+   - Génération de mots de longueur fixe (18 caractères)
+   - Charset limité (A-Z0-9)
+   - Gestion efficace de la mémoire
+
+3. **SessionManager**
+   - Implémentation complète
+   - Stockage YAML des sessions
+   - Gestion du cycle de vie des sessions
+   - Suivi des PID et statuts
+
+4. **MyHashcat**
+   - Implémentation complète
+   - Interface en ligne de commande
+   - Mode silencieux par défaut avec option verbose
+   - Système de logging détaillé
+   - Continuation automatique des attaques
+
+### Fonctionnalités Complétées
+
+- [x] Génération de dictionnaires optimisée
+- [x] Détection automatique du type de hash
+- [x] Gestion avancée des sessions
+- [x] Suivi des processus avec PID
+- [x] Continuation automatique des attaques
+- [x] Nettoyage intelligent des ressources
+- [x] Système de logging complet
+- [x] Mode verbeux pour débogage
+
+## Spécifications Techniques
+
+### Structure des Fichiers
+
+```
+~/.myhashcat/
+  ├── sessions/      # Sessions YAML
+  ├── work/         # Fichiers temporaires
+  │   └── dictionaries/
+  └── logs/         # Fichiers de logs
+```
+
+### Format des Sessions
+
+```yaml
+session_id:
+  name: string
+  hash_file: string (chemin absolu)
+  hash_type: int
+  word_length: int (18)
+  charset: string (A-Z0-9)
+  attack_mode: string
+  rules: string (optionnel)
+  status: string (created|running|stopped|finished)
+  process_pid: int
+  start_time: datetime
+```
+
+### Paramètres par Défaut
+
+- Longueur des mots : 18 caractères (fixe)
+- Charset : A-Z0-9
+- Mode d'attaque : straight
+- Taille du dictionnaire : 1 million de mots
+
+## Tâches Restantes
+
+1. **Tests**
+   - Tests d'intégration complets
+   - Tests de performance
+   - Tests de charge
+
+2. **Documentation**
+   - Guide de contribution
+   - Documentation API
+   - Exemples d'utilisation avancée
+
+3. **Améliorations Futures**
+   - Interface graphique
+   - Support de modes d'attaque supplémentaires
+   - Statistiques d'attaque détaillées
+   - Optimisations de performance
+
 ## Objectif
 
 Développer un outil Python qui combine la génération de dictionnaires personnalisés avec Hashcat pour le crackage de mots de passe.
@@ -123,90 +217,6 @@ Développer un outil Python qui combine la génération de dictionnaires personn
 - Gestion des versions
 - Suivi des bugs
 - Documentation à jour
-
-## État d'Avancement
-
-### Tâches Complétées ✅
-1. **Setup Initial**
-   - Structure du projet créée
-   - Configuration Git mise en place
-   - Fichiers de base créés (README.md, requirements.txt, .gitignore)
-   - Structure des modules Python établie
-
-2. **Développement Core - Initial**
-   - Classes de base créées :
-     - `DictionaryGenerator` : Implémentation complète et testée
-     - `HashcatInterface` : Implémentation complète et testée
-     - `SessionManager` : système de gestion des sessions implémenté
-
-3. **Tests**
-   - Tests unitaires complets pour le générateur de dictionnaire
-   - Tests unitaires complets pour l'interface Hashcat :
-     - Validation de l'installation
-     - Gestion des modes d'attaque
-     - Lancement et suivi des attaques
-     - Gestion des erreurs
-     - Nettoyage des ressources
-   - Tous les tests passent avec succès
-
-### Tâches Restantes 📝
-1. **Développement Core**
-   - Intégration des composants ensemble
-   - Tests d'intégration
-
-2. **Tests et Documentation**
-   - Documenter l'utilisation de l'outil
-   - Ajouter des exemples d'utilisation
-
-3. **Optimisation**
-   - Tests de performance
-   - Optimisation du code
-   - Gestion de la mémoire pour les grands dictionnaires
-
-## Objectifs Principaux
-1. Créer une interface Python pour Hashcat
-2. Générer des dictionnaires dynamiquement
-3. Gérer des sessions de cracking
-4. Intégrer une gestion de version avec Git
-
-## Spécifications Techniques
-
-### 1. Génération de Dictionnaire
-- Longueur par défaut : 18 caractères
-- Charset par défaut : 
-  - Lettres majuscules (A-Z)
-  - Chiffres (0-9)
-- Possibilité de personnaliser les paramètres
-- Fonctionnalités implémentées :
-  - Génération aléatoire de lots de mots uniques
-  - Génération séquentielle à partir d'un index
-  - Estimation de l'utilisation mémoire
-  - Validation des paramètres d'entrée
-  - Gestion des limites de combinaisons
-
-### 2. Interface Hashcat
-- Modes d'attaque supportés :
-  - `straight` (0) : Attaque en ligne droite
-  - `combination` (1) : Attaque par combinaison
-  - `bruteforce` (3) : Attaque par force brute avec masque
-  - `hybrid` (6) : Attaque hybride dict + mask
-- Fonctionnalités implémentées :
-  - Validation de l'installation de Hashcat
-  - Gestion des fichiers de dictionnaire et règles
-  - Support des masques pour force brute
-  - Suivi de la progression des attaques
-  - Gestion propre des processus
-  - Nettoyage automatique des fichiers temporaires
-
-### 3. Gestion des Sessions
-- Sauvegarde de l'état d'avancement
-- Reprise possible des sessions interrompues
-- Historique des tentatives
-
-### 4. Configuration Git
-- Structure du projet
-- Fichiers à ignorer (.gitignore)
-- Convention de commits
 
 ## Étapes de Développement
 

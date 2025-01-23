@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 from typing import Dict, Any, Optional
 from datetime import datetime
+import yaml
 
 
 class SessionManager:
@@ -26,27 +27,32 @@ class SessionManager:
 
     def create_session(self, name: str, config: Dict[str, Any]) -> str:
         """
-        Crée une nouvelle session
-
-        Args:
-            name (str): Nom de la session
-            config (Dict[str, Any]): Configuration de la session
-
-        Returns:
-            str: Identifiant de la session
+        Crée une nouvelle session avec la configuration spécifiée
         """
-        session_id = f"{name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        session_id = f"{name}_{timestamp}"
+        
+        # Vérification des données requises
+        required_fields = ["name", "hash_file"]
+        for field in required_fields:
+            if field not in config:
+                raise ValueError(f"Configuration invalide: {field} manquant")
+            if not config[field]:
+                raise ValueError(f"Configuration invalide: {field} vide")
+        
+        # Création du fichier de session
+        session_file = self.sessions_dir / f"{session_id}.yaml"
         session_data = {
             "id": session_id,
-            "name": name,
-            "config": config,
-            "created_at": datetime.now().isoformat(),
-            "status": "created",
-            "progress": 0
+            **config
         }
         
-        self._save_session(session_id, session_data)
-        return session_id
+        try:
+            with session_file.open("w") as f:
+                yaml.dump(session_data, f)
+            return session_id
+        except Exception as e:
+            raise RuntimeError(f"Erreur lors de la création de la session: {str(e)}")
 
     def load_session(self, session_id: str) -> Optional[Dict[str, Any]]:
         """
@@ -58,12 +64,16 @@ class SessionManager:
         Returns:
             Optional[Dict[str, Any]]: Données de la session ou None si non trouvée
         """
-        session_file = self.sessions_dir / f"{session_id}.json"
+        session_file = self.sessions_dir / f"{session_id}.yaml"
         if not session_file.exists():
             return None
         
-        with session_file.open("r") as f:
-            return json.load(f)
+        try:
+            with session_file.open("r") as f:
+                return yaml.safe_load(f)
+        except Exception as e:
+            print(f"Erreur lors du chargement de la session {session_id}: {e}")
+            return None
 
     def update_session(self, session_id: str, updates: Dict[str, Any]) -> bool:
         """
@@ -82,8 +92,15 @@ class SessionManager:
 
         session_data.update(updates)
         session_data["updated_at"] = datetime.now().isoformat()
-        self._save_session(session_id, session_data)
-        return True
+        
+        try:
+            session_file = self.sessions_dir / f"{session_id}.yaml"
+            with session_file.open("w") as f:
+                yaml.dump(session_data, f)
+            return True
+        except Exception as e:
+            print(f"Erreur lors de la mise à jour de la session {session_id}: {e}")
+            return False
 
     def list_sessions(self) -> Dict[str, Dict[str, Any]]:
         """
@@ -93,24 +110,12 @@ class SessionManager:
             Dict[str, Dict[str, Any]]: Dictionnaire des sessions avec leur ID comme clé
         """
         sessions = {}
-        for session_file in self.sessions_dir.glob("*.json"):
+        for session_file in self.sessions_dir.glob("*.yaml"):
             session_id = session_file.stem
             session_data = self.load_session(session_id)
             if session_data:
                 sessions[session_id] = session_data
         return sessions
-
-    def _save_session(self, session_id: str, data: Dict[str, Any]) -> None:
-        """
-        Sauvegarde les données d'une session
-
-        Args:
-            session_id (str): Identifiant de la session
-            data (Dict[str, Any]): Données à sauvegarder
-        """
-        session_file = self.sessions_dir / f"{session_id}.json"
-        with session_file.open("w") as f:
-            json.dump(data, f, indent=2)
 
     def delete_session(self, session_id: str) -> bool:
         """
@@ -122,7 +127,7 @@ class SessionManager:
         Returns:
             bool: True si la suppression a réussi, False sinon
         """
-        session_file = self.sessions_dir / f"{session_id}.json"
+        session_file = self.sessions_dir / f"{session_id}.yaml"
         if session_file.exists():
             try:
                 session_file.unlink()

@@ -47,6 +47,10 @@ class HashDetector:
         "PHPASS": {
             "id": 400,
             "pattern": r"^\$[HP]\$[a-zA-Z0-9./]{31}$"
+        },
+        "WPA": {
+            "id": 22000,
+            "pattern": r"^WPA\*\d+\*[a-fA-F0-9]+\*[a-fA-F0-9]+\*[a-fA-F0-9]+$"
         }
     }
 
@@ -94,11 +98,25 @@ class HashDetector:
         if not hash_file.exists():
             raise FileNotFoundError(f"Fichier non trouvé: {hash_file}")
 
-        # Lecture de la première ligne non vide du fichier
-        with hash_file.open("r") as f:
+        # Vérifier d'abord si c'est un fichier au format 22000 (WPA/WPA2/WPA3)
+        if hash_file.name.endswith('.22000'):
+            return {
+                "name": "WPA",
+                "id": 22000,
+                "description": "Hash de type WPA/WPA2/WPA3 (EAPOL)"
+            }
+
+        # Lecture de la première ligne non vide du fichier en mode binaire
+        with hash_file.open("rb") as f:
             for line in f:
                 line = line.strip()
                 if line:
-                    return cls.detect_hash_type(line)
+                    try:
+                        # Tentative de décodage en UTF-8
+                        decoded_line = line.decode('utf-8')
+                        return cls.detect_hash_type(decoded_line)
+                    except UnicodeDecodeError:
+                        # Ignorer les lignes qui ne peuvent pas être décodées
+                        continue
 
         return None 
