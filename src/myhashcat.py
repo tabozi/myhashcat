@@ -95,11 +95,26 @@ class MyHashcat:
         rules: Optional[List[Path]] = None,
         mask: Optional[str] = None,
         options: Optional[Dict[str, Any]] = None,
+        skip: Optional[int] = None,
         auto_continue: bool = False,
         verbose: bool = False
     ) -> str:
         """
         Crée et démarre une nouvelle session d'attaque
+
+        Args:
+            name (str): Nom de la session
+            hash_file (Path): Fichier contenant le hash
+            hash_type (Optional[int]): Type de hash (détection automatique si None)
+            word_length (Optional[int]): Longueur des mots (18 par défaut)
+            charset (Optional[set]): Jeu de caractères (A-Z0-9 par défaut)
+            attack_mode (str): Mode d'attaque (straight, rules, mask)
+            rules (Optional[List[Path]]): Liste des fichiers de règles
+            mask (Optional[str]): Masque pour l'attaque
+            options (Optional[Dict[str, Any]]): Options supplémentaires
+            skip (Optional[int]): Nombre de mots à sauter dans le dictionnaire
+            auto_continue (bool): Continue automatiquement avec un nouveau dictionnaire
+            verbose (bool): Affiche les détails de l'exécution
         """
         try:
             self.logger.info(f"Création d'une nouvelle session d'attaque: {name}")
@@ -178,6 +193,7 @@ class MyHashcat:
                 "rules": [str(r) for r in rules] if rules else None,
                 "mask": mask,
                 "options": options,
+                "skip": skip,
                 "start_time": datetime.now().isoformat()
             }
 
@@ -204,11 +220,27 @@ class MyHashcat:
             try:
                 generator = DictionaryGenerator(length=word_length, charset=charset)
                 if verbose:
+                    # Récupération des informations sur le charset et les combinaisons
+                    charset_size, total_combinations, total_size_tb = generator.get_charset_info()
+                    dict_needed, coverage = generator.estimate_dictionaries_needed()
+                    
+                    print(f"\nAnalyse des combinaisons possibles :")
+                    print(f"- Charset : {''.join(sorted(charset))} ({charset_size} caractères)")
+                    print(f"- Longueur des mots : {word_length} caractères")
+                    print(f"- Nombre total de combinaisons : {total_combinations:,}")
+                    print(f"- Taille totale estimée : {total_size_tb:.2f} To")
+                    print(f"\nEstimation des dictionnaires :")
+                    print(f"- Taille des dictionnaires : 1 million de mots")
+                    print(f"- Nombre de dictionnaires nécessaires : {dict_needed:,}")
+                    print(f"- Couverture : {coverage:.2f}%")
+                    
                     print(f"\nConfiguration du générateur :")
                     print(f"- Longueur des mots : {word_length} caractères")
                     print(f"- Charset : {''.join(sorted(charset))}")
                     if rules:
                         print(f"- Règles : {', '.join(str(r) for r in rules)}")
+                    if skip:
+                        print(f"- Skip : {skip} mots")
             except Exception as e:
                 self.logger.error(f"Erreur lors de l'initialisation du générateur: {str(e)}")
                 raise RuntimeError(f"Erreur lors de l'initialisation du générateur: {str(e)}")
@@ -216,8 +248,18 @@ class MyHashcat:
             # Création du dictionnaire initial
             try:
                 dict_file = self.dict_dir / f"{session_id}_initial.txt"
-                self._generate_dictionary(generator, dict_file, verbose=verbose)
+                next_index = self._generate_dictionary(
+                    generator, 
+                    dict_file, 
+                    start_index=0,  # Premier dictionnaire commence à 0
+                    verbose=verbose
+                )
                 self.logger.info(f"Dictionnaire généré: {dict_file}")
+                
+                # Mise à jour de la configuration avec l'index de génération
+                config["next_word_index"] = next_index
+                self.session_manager.update_session(session_id, {"next_word_index": next_index})
+                
             except Exception as e:
                 self.logger.error(f"Erreur lors de la génération du dictionnaire: {str(e)}")
                 raise RuntimeError(f"Erreur lors de la génération du dictionnaire: {str(e)}")
@@ -232,6 +274,7 @@ class MyHashcat:
                     rules=rules,
                     mask=mask,
                     session=session_id,
+                    skip=skip,
                     options={
                         "status-timer": 10,  # Mise à jour toutes les 10 secondes
                         **(options or {})
@@ -253,7 +296,8 @@ class MyHashcat:
                     "process_pid": process.pid,
                     "dictionary_file": str(dict_file),
                     "status": "running",
-                    "rules": [str(r) for r in rules] if rules else None
+                    "rules": [str(r) for r in rules] if rules else None,
+                    "skip": skip
                 })
                 self.logger.info(f"Session mise à jour avec le PID {process.pid}")
             except Exception as e:
@@ -279,8 +323,9 @@ class MyHashcat:
         generator: DictionaryGenerator,
         output_file: Path,
         batch_size: int = 1_000_000,
+        start_index: int = 0,
         verbose: bool = False
-    ) -> None:
+    ) -> int:
         """
         Génère un dictionnaire et l'écrit dans un fichier
 
@@ -288,16 +333,27 @@ class MyHashcat:
             generator (DictionaryGenerator): Générateur à utiliser
             output_file (Path): Fichier de sortie
             batch_size (int): Taille du lot de mots à générer (par défaut : 1 million)
+            start_index (int): Index de départ pour la génération séquentielle
             verbose (bool): Affiche les détails de l'exécution
+
+        Returns:
+            int: Index du dernier mot généré + 1 (pour la prochaine génération)
         """
         if verbose:
-            print(f"Génération d'un dictionnaire de {batch_size} mots...")
-        words = generator.generate_batch(batch_size=batch_size)
+            print(f"Génération d'un dictionnaire de {batch_size} mots à partir de l'index {start_index}...")
+        
+        words = generator.generate_sequential(start_index=start_index, count=batch_size)
         with output_file.open("w") as f:
             for word in words:
                 f.write(f"{word}\n")
+        
+        next_index = start_index + len(words)
+        
         if verbose:
             print(f"Dictionnaire généré avec succès : {output_file}")
+            print(f"Prochain index de départ : {next_index}")
+        
+        return next_index
 
     def get_session_status(self, session_id: str) -> Dict[str, Any]:
         """
@@ -406,10 +462,12 @@ class MyHashcat:
         Cette méthode va :
         1. Lister toutes les sessions actives
         2. Arrêter les processus en cours
-        3. Supprimer les sessions terminées
-        4. Nettoyer les fichiers temporaires
+        3. Supprimer toutes les sessions sauf nao1_20250123_110122
+        4. Nettoyer les fichiers temporaires sauf ceux de la session conservée
         """
         print("\n=== Nettoyage de MyHashcat ===")
+        
+        SESSION_TO_KEEP = "nao1_20250123_110122"
         
         # 1. Liste et arrêt des processus actifs
         if self._active_processes:
@@ -436,23 +494,19 @@ class MyHashcat:
         except Exception as e:
             print(f"   → Erreur lors du nettoyage Hashcat : {e}")
 
-        # 3. Suppression des sessions terminées
+        # 3. Suppression des sessions
         print("\n3. Nettoyage des sessions...")
         sessions = self.session_manager.list_sessions()
         if sessions:
             for session_id in sessions:
-                session = self.session_manager.load_session(session_id)
-                if session:
-                    status = session.get("status", "unknown")
-                    print(f"   - Session {session_id} ({status})")
-                    if status in ["finished", "stopped"]:
-                        try:
-                            self.session_manager.delete_session(session_id)
-                            print(f"     → Supprimée")
-                        except Exception as e:
-                            print(f"     → Erreur lors de la suppression : {e}")
-                    else:
-                        print(f"     → Conservée (statut: {status})")
+                if session_id != SESSION_TO_KEEP:  # Garde uniquement cette session
+                    try:
+                        self.session_manager.delete_session(session_id)
+                        print(f"   - Session {session_id} supprimée")
+                    except Exception as e:
+                        print(f"   - Erreur lors de la suppression de {session_id}: {e}")
+                else:
+                    print(f"   - Session {session_id} conservée")
         else:
             print("   → Aucune session trouvée")
 
@@ -462,32 +516,52 @@ class MyHashcat:
         # Nettoyage des dictionnaires
         if self.dict_dir.exists():
             try:
-                files_count = len(list(self.dict_dir.glob("*")))
+                # Récupération du fichier dictionnaire de la session à conserver
+                session_to_keep = self.session_manager.load_session(SESSION_TO_KEEP)
+                dict_file_to_keep = None
+                if session_to_keep and "dictionary_file" in session_to_keep:
+                    dict_file_to_keep = Path(session_to_keep["dictionary_file"])
+                
+                files_count = 0
                 for file in self.dict_dir.glob("*"):
+                    if dict_file_to_keep and file == dict_file_to_keep:
+                        print(f"   → Conservation du dictionnaire: {file.name}")
+                        continue
                     try:
                         file.unlink()
+                        files_count += 1
                     except OSError as e:
                         print(f"   → Erreur lors de la suppression de {file.name}: {e}")
-                print(f"   → {files_count} fichiers dictionnaire(s) supprimé(s)")
                 
-                self.dict_dir.rmdir()
-                print("   → Répertoire des dictionnaires supprimé")
+                if files_count > 0:
+                    print(f"   → {files_count} fichiers dictionnaire(s) supprimé(s)")
+                
+                # Ne pas supprimer le répertoire s'il contient encore le dictionnaire à conserver
+                if not any(self.dict_dir.iterdir()):
+                    self.dict_dir.rmdir()
+                    print("   → Répertoire des dictionnaires supprimé")
+                else:
+                    print("   → Répertoire des dictionnaires conservé (contient le dictionnaire actif)")
+                    
             except OSError as e:
-                print(f"   → Erreur lors de la suppression du répertoire des dictionnaires : {e}")
+                print(f"   → Erreur lors du nettoyage des dictionnaires : {e}")
 
-        # Nettoyage du répertoire de travail
+        # Nettoyage du répertoire de travail seulement s'il est vide
         if self.work_dir.exists():
             try:
-                self.work_dir.rmdir()
-                print("   → Répertoire de travail supprimé")
+                if not any(self.work_dir.iterdir()):
+                    self.work_dir.rmdir()
+                    print("   → Répertoire de travail supprimé")
+                else:
+                    print("   → Répertoire de travail conservé (contient des fichiers actifs)")
             except OSError as e:
                 print("   → Le répertoire de travail contient encore des fichiers, il sera conservé")
 
-        print("\n=== Nettoyage terminé ===\n") 
+        print("\n=== Nettoyage terminé ===\n")
 
     def continue_attack(self, session_id: str, verbose: bool = False) -> str:
         """
-        Continue une attaque avec un nouveau dictionnaire
+        Continue une attaque avec le même dictionnaire
 
         Args:
             session_id (str): Identifiant de la session à continuer
@@ -505,13 +579,13 @@ class MyHashcat:
             self.logger.error(error_msg)
             raise ValueError(error_msg)
 
-        # Vérification que la session est terminée
-        if session.get("status") != "finished":
-            error_msg = f"La session {session_id} n'est pas terminée"
+        # Vérification que la session est terminée ou arrêtée
+        if session.get("status") not in ["finished", "stopped"]:
+            error_msg = f"La session {session_id} n'est pas terminée ou arrêtée"
             self.logger.error(error_msg)
             raise ValueError(error_msg)
 
-        # Récupération des paramètres de la session avec valeurs par défaut
+        # Récupération des paramètres de la session
         try:
             hash_file = session.get("hash_file")
             if not hash_file:
@@ -526,13 +600,26 @@ class MyHashcat:
                 raise ValueError(error_msg)
                 
             self.logger.debug(f"Fichier de hash trouvé: {hash_file}")
+
+            # Récupération du dictionnaire existant
+            dict_file = session.get("dictionary_file")
+            if not dict_file:
+                error_msg = "Fichier dictionnaire non trouvé dans la session"
+                self.logger.error(error_msg)
+                raise ValueError(error_msg)
+            
+            dict_file = Path(dict_file)
+            if not dict_file.exists():
+                error_msg = f"Fichier dictionnaire non trouvé: {dict_file}"
+                self.logger.error(error_msg)
+                raise ValueError(error_msg)
+
+            self.logger.debug(f"Fichier dictionnaire trouvé: {dict_file}")
         except Exception as e:
-            error_msg = f"Erreur lors de la récupération du fichier de hash: {str(e)}"
+            error_msg = f"Erreur lors de la récupération des fichiers: {str(e)}"
             self.logger.error(error_msg)
             raise ValueError(error_msg)
 
-        word_length = session.get("word_length", 18)  # Valeur par défaut : 18
-        charset = set(session.get("charset", list(string.ascii_uppercase + string.digits)))  # Valeur par défaut : A-Z0-9
         rules = [Path(r) for r in session["rules"]] if session.get("rules") else None
         hash_type = session.get("hash_type")
         
@@ -541,40 +628,55 @@ class MyHashcat:
             self.logger.error(error_msg)
             raise ValueError(error_msg)
         
-        self.logger.debug(f"Paramètres récupérés: hash_file={hash_file}, hash_type={hash_type}, word_length={word_length}")
-        
-        # Création d'un nouveau dictionnaire avec un suffixe incrémenté
-        base_name = session_id.rsplit("_", 2)[0]  # Retire le timestamp
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        new_session_id = f"{base_name}_{timestamp}"
-        
-        # Initialisation du générateur avec les mêmes paramètres
+        # Création d'une nouvelle session avec un nouveau dictionnaire
         try:
-            generator = DictionaryGenerator(length=word_length, charset=charset)
+            # Création du nouvel identifiant de session
+            base_name = session_id.rsplit("_", 2)[0]  # Retire le timestamp
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            new_session_id = f"{base_name}_{timestamp}"
+
+            # Récupération de l'index de départ pour le nouveau dictionnaire
+            start_index = session.get("next_word_index", 0)
+            
+            # Création du nouveau dictionnaire
             dict_file = self.dict_dir / f"{new_session_id}_initial.txt"
+            generator = DictionaryGenerator(
+                length=session.get("word_length", 18),
+                charset=set(session.get("charset", []))
+            )
+            
+            next_index = self._generate_dictionary(
+                generator,
+                dict_file,
+                start_index=start_index,
+                verbose=verbose
+            )
             
             if verbose:
                 print(f"\nContinuation de l'attaque avec un nouveau dictionnaire:")
                 print(f"- Fichier hash : {hash_file}")
                 print(f"- Type de hash : {hash_type}")
-                print(f"- Longueur des mots : {word_length} caractères")
-                print(f"- Charset : {''.join(sorted(charset))}")
+                print(f"- Nouveau dictionnaire : {dict_file}")
+                print(f"- Index de départ : {start_index}")
+                print(f"- Index pour le prochain dictionnaire : {next_index}")
                 if rules:
                     print(f"- Règles : {', '.join(str(r) for r in rules)}")
             
             # Création de la nouvelle session
             new_config = {
                 "name": session["name"],
-                "hash_file": str(hash_file.resolve()),  # Chemin absolu du fichier de hash
+                "hash_file": str(hash_file.resolve()),
                 "hash_type": hash_type,
-                "word_length": word_length,
-                "charset": list(charset),
+                "word_length": session.get("word_length"),
+                "charset": session.get("charset"),
                 "attack_mode": session.get("attack_mode", "straight"),
                 "rules": [str(r) for r in rules] if rules else None,
                 "mask": session.get("mask"),
                 "options": session.get("options"),
                 "start_time": datetime.now().isoformat(),
                 "previous_session": session_id,
+                "dictionary_file": str(dict_file),
+                "next_word_index": next_index,
                 "status": "created"
             }
             
@@ -582,35 +684,40 @@ class MyHashcat:
             self.session_manager.create_session(session["name"], new_config)
             self.logger.info(f"Nouvelle session créée: {new_session_id}")
             
-            # Génération du nouveau dictionnaire
-            self._generate_dictionary(generator, dict_file, verbose=verbose)
-            self.logger.info(f"Nouveau dictionnaire généré: {dict_file}")
-            
-            # Lancement de l'attaque
-            process = self.hashcat.start_attack(
-                hash_file=hash_file,
-                attack_mode=session.get("attack_mode", "straight"),
-                hash_type=hash_type,
-                dictionary=dict_file,
-                rules=rules,
-                session=new_session_id,
-                options={
-                    "status-timer": 10,
-                    **(session.get("options") or {})
-                }
-            )
-            self.logger.info(f"Nouvelle attaque démarrée avec PID {process.pid}")
+            # Lancement de l'attaque avec le nouveau dictionnaire
+            try:
+                process = self.hashcat.start_attack(
+                    hash_file=hash_file,
+                    attack_mode=session.get("attack_mode", "straight"),
+                    hash_type=hash_type,
+                    dictionary=dict_file,
+                    rules=rules,
+                    session=new_session_id,
+                    options={
+                        "status-timer": 10,
+                        **(session.get("options") or {})
+                    }
+                )
+                self.logger.info(f"Attaque reprise avec PID {process.pid}")
+            except Exception as e:
+                self.logger.error(f"Erreur lors du lancement de l'attaque: {str(e)}")
+                raise RuntimeError(f"Erreur lors du lancement de l'attaque: {str(e)}")
+
+            # Vérification que le processus a bien démarré
+            if process.poll() is not None:
+                error_msg = "Le processus s'est arrêté immédiatement après le lancement"
+                self.logger.error(error_msg)
+                raise RuntimeError(error_msg)
 
             # Stockage du processus
             self._active_processes[new_session_id] = process
             if verbose:
-                print(f"Nouvelle attaque démarrée avec la session {new_session_id}")
+                print(f"Attaque reprise avec la session {new_session_id}")
                 print(f"Processus enregistré: PID {process.pid}")
 
             # Mise à jour du statut
             self.session_manager.update_session(new_session_id, {
                 "process_pid": process.pid,
-                "dictionary_file": str(dict_file),
                 "status": "running"
             })
 

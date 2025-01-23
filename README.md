@@ -128,6 +128,7 @@ hashcat --help | grep -i "hash modes"
     - `--word-length <longueur>` : Longueur des mots (fixée à 18 caractères)
     - `--charset <charset>` : Jeu de caractères (A-Z0-9 par défaut)
     - `--rules <fichier>` : Fichier de règles à utiliser
+    - `--skip <n>` : Nombre de mots à sauter dans le dictionnaire
     - `--auto-continue` : Continue automatiquement avec un nouveau dictionnaire
     - `-v, --verbose` : Mode verbeux
 
@@ -143,20 +144,23 @@ hashcat --help | grep -i "hash modes"
 ### Exemples
 
 ```bash
-# Démarrer une attaque avec continuation automatique
+# Démarrer une attaque avec détection automatique du hash
+myhashcat start test1 hash.txt
+
+# Démarrer une attaque en sautant les 1000 premiers mots
+myhashcat start test1 hash.txt --skip 1000
+
+# Démarrer une attaque avec auto-continue
 myhashcat start test1 hash.txt --auto-continue
 
+# Continuer une attaque spécifique
+myhashcat continue test1_20250122_223713
+
 # Vérifier le statut d'une session
-myhashcat status test1_20250123_103422
+myhashcat status test1_20250122_223713
 
-# Continuer une attaque manuellement
-myhashcat continue test1_20250123_103422
-
-# Lister les sessions actives
+# Lister les sessions actives (avec PID)
 myhashcat list
-
-# Nettoyer les ressources
-myhashcat cleanup
 ```
 
 ## Structure des Fichiers

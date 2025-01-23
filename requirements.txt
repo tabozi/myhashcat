@@ -3,6 +3,7 @@ click>=8.1.0  # Pour l'interface en ligne de commande
 tqdm>=4.65.0  # Pour les barres de progression
 pyyaml>=6.0   # Pour la gestion des configurations
 python-dotenv>=1.0.0  # Pour la gestion des variables d'environnement
+psutil>=5.9.0  # Pour la gestion des processus
 
 # Testing
 pytest>=7.3.1

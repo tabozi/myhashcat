@@ -3,7 +3,8 @@ Module de génération de dictionnaire pour MyHashcat
 """
 import string
 import random
-from typing import List, Set, Iterator
+import math
+from typing import List, Set, Iterator, Tuple
 from itertools import product
 
 
@@ -117,4 +118,41 @@ class DictionaryGenerator:
             int: Estimation en octets
         """
         # Estimation approximative : chaque caractère = 1 octet + overhead Python
-        return batch_size * (self.length + 49)  # 49 octets = overhead approximatif par string 
+        return batch_size * (self.length + 49)  # 49 octets = overhead approximatif par string
+
+    def estimate_dictionaries_needed(self, batch_size: int = 1_000_000) -> Tuple[int, float]:
+        """
+        Estime le nombre de dictionnaires nécessaires pour couvrir toutes les combinaisons possibles
+
+        Args:
+            batch_size (int): Nombre de mots par dictionnaire
+
+        Returns:
+            Tuple[int, float]: (nombre de dictionnaires, pourcentage de couverture)
+        """
+        if batch_size < 1:
+            raise ValueError("La taille du lot doit être supérieure à 0")
+
+        # Calcul du nombre de dictionnaires nécessaires
+        dictionaries_needed = math.ceil(self._total_combinations / batch_size)
+        
+        # Calcul du pourcentage de couverture
+        total_words = min(dictionaries_needed * batch_size, self._total_combinations)
+        coverage = (total_words / self._total_combinations) * 100
+
+        return dictionaries_needed, coverage
+
+    def get_charset_info(self) -> Tuple[int, int, float]:
+        """
+        Retourne des informations sur le charset et les combinaisons possibles
+
+        Returns:
+            Tuple[int, int, float]: (taille du charset, nombre total de combinaisons, taille estimée en To)
+        """
+        charset_size = len(self.charset)
+        total_combinations = self._total_combinations
+        # Estimation de la taille totale en octets (longueur + overhead par mot)
+        total_size_bytes = total_combinations * (self.length + 49)
+        total_size_tb = total_size_bytes / (1024**4)  # Conversion en téraoctets
+        
+        return charset_size, total_combinations, total_size_tb 

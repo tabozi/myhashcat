@@ -89,6 +89,7 @@ class HashcatInterface:
         mask: Optional[str] = None,
         session: Optional[str] = None,
         options: Optional[Dict[str, Any]] = None,
+        skip: Optional[int] = None,
         verbose: bool = False
     ) -> subprocess.Popen:
         """
@@ -103,6 +104,7 @@ class HashcatInterface:
             mask (Optional[str]): Masque pour l'attaque
             session (Optional[str]): Identifiant de session
             options (Dict[str, Any]): Options supplémentaires
+            skip (Optional[int]): Nombre de mots à sauter dans le dictionnaire
             verbose (bool): Affiche la sortie de hashcat
         """
         self.logger.info(f"Démarrage d'une attaque Hashcat sur {hash_file}")
@@ -146,6 +148,10 @@ class HashcatInterface:
         if session:
             cmd.extend(["--session", session])
 
+        # Ajout de l'option skip si spécifiée
+        if skip is not None:
+            cmd.extend(["--skip", str(skip)])
+
         # Ajout des options supplémentaires
         if options:
             for key, value in options.items():
@@ -164,6 +170,8 @@ class HashcatInterface:
             print(f"- Type de hash: {hash_type}")
             print(f"- Dictionnaire: {dictionary}")
             print(f"- Règles: {rules}")
+            if skip:
+                print(f"- Skip: {skip} mots")
             print(f"Commande Hashcat: {' '.join(cmd)}")
 
         # Lancement du processus avec redirection de la sortie

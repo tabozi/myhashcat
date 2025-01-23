@@ -58,39 +58,41 @@ Pour plus d'informations: myhashcat --help
 def main():
     """Point d'entrée principal du CLI"""
     parser = argparse.ArgumentParser(description="Interface en ligne de commande pour MyHashcat")
-    subparsers = parser.add_subparsers(dest="command", help="Commande à exécuter")
+    subparsers = parser.add_subparsers(dest="command", help="Commandes disponibles")
 
     # Configuration du logging
     logger = logging.getLogger('myhashcat.cli')
     
     try:
         # Commande start
-        start_parser = subparsers.add_parser("start", help="Démarre une nouvelle attaque")
+        start_parser = subparsers.add_parser("start", help="Démarre une nouvelle session d'attaque")
         start_parser.add_argument("name", help="Nom de la session")
         start_parser.add_argument("hash_file", type=Path, help="Fichier contenant le hash")
-        start_parser.add_argument("--hash-type", type=int, help="Type de hash (voir --help de hashcat)")
-        start_parser.add_argument("--word-length", type=int, help="Longueur des mots à générer")
-        start_parser.add_argument("--charset", help="Ensemble des caractères à utiliser")
+        start_parser.add_argument("--hash-type", type=int, help="Type de hash (détection automatique par défaut)")
+        start_parser.add_argument("--word-length", type=int, help="Longueur des mots (18 par défaut)")
+        start_parser.add_argument("--charset", help="Jeu de caractères (A-Z0-9 par défaut)")
         start_parser.add_argument("--rules", type=Path, nargs="+", help="Fichiers de règles à utiliser")
-        start_parser.add_argument("--auto-continue", action="store_true", help="Continue automatiquement avec de nouveaux dictionnaires")
-        start_parser.add_argument("-v", "--verbose", action="store_true", help="Affiche les détails de l'exécution")
+        start_parser.add_argument("--mask", help="Masque pour l'attaque")
+        start_parser.add_argument("--skip", type=int, help="Nombre de mots à sauter dans le dictionnaire")
+        start_parser.add_argument("--auto-continue", action="store_true", help="Continue automatiquement avec un nouveau dictionnaire")
+        start_parser.add_argument("-v", "--verbose", action="store_true", help="Mode verbeux")
 
         # Commande continue
-        continue_parser = subparsers.add_parser("continue", help="Continue une attaque avec un nouveau dictionnaire")
-        continue_parser.add_argument("session_id", help="ID de la session à continuer")
-        continue_parser.add_argument("-v", "--verbose", action="store_true", help="Affiche les détails de l'exécution")
+        continue_parser = subparsers.add_parser("continue", help="Continue une session avec un nouveau dictionnaire")
+        continue_parser.add_argument("session_id", help="Identifiant de la session")
+        continue_parser.add_argument("-v", "--verbose", action="store_true", help="Mode verbeux")
 
         # Commande status
         status_parser = subparsers.add_parser("status", help="Affiche le statut d'une session")
-        status_parser.add_argument("session_id", help="ID de la session")
-        status_parser.add_argument("-v", "--verbose", action="store_true", help="Affiche les détails de l'exécution")
+        status_parser.add_argument("session_id", help="Identifiant de la session")
+        status_parser.add_argument("-v", "--verbose", action="store_true", help="Mode verbeux")
 
         # Commande stop
         stop_parser = subparsers.add_parser("stop", help="Arrête une session")
-        stop_parser.add_argument("session_id", help="ID de la session")
+        stop_parser.add_argument("session_id", help="Identifiant de la session")
 
         # Commande list
-        list_parser = subparsers.add_parser("list", help="Liste les sessions")
+        list_parser = subparsers.add_parser("list", help="Liste toutes les sessions")
 
         # Commande cleanup
         cleanup_parser = subparsers.add_parser("cleanup", help="Nettoie les ressources")
@@ -108,7 +110,7 @@ def main():
 
         if args.command == "start":
             try:
-                # Conversion du charset si spécifié
+                # Conversion du charset en set si spécifié
                 charset = set(args.charset) if args.charset else None
                 
                 # Création de la session
@@ -119,12 +121,14 @@ def main():
                     word_length=args.word_length,
                     charset=charset,
                     rules=args.rules,
+                    mask=args.mask,
+                    skip=args.skip,
                     auto_continue=args.auto_continue,
                     verbose=args.verbose
                 )
                 
-                print(f"Session créée: {session_id}")
-                logger.info(f"Session créée avec succès: {session_id}")
+                print(f"Session créée avec l'ID: {session_id}")
+                logger.info(f"Session {session_id} créée avec succès")
                 
                 # Si auto-continue est activé, on surveille la session
                 if args.auto_continue:
@@ -216,14 +220,15 @@ def main():
                     print("Aucune session trouvée")
                     logger.info("Aucune session trouvée")
             except Exception as e:
-                logger.error(f"Erreur lors de la liste des sessions: {str(e)}", exc_info=True)
+                logger.error(f"Erreur lors de la récupération des sessions: {str(e)}", exc_info=True)
                 print(f"Erreur: {str(e)}")
                 return 1
 
         elif args.command == "cleanup":
             try:
                 hashcat.cleanup()
-                logger.info("Nettoyage effectué avec succès")
+                print("Nettoyage terminé")
+                logger.info("Nettoyage des ressources effectué avec succès")
             except Exception as e:
                 logger.error(f"Erreur lors du nettoyage: {str(e)}", exc_info=True)
                 print(f"Erreur: {str(e)}")
